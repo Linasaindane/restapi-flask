@@ -1,9 +1,10 @@
-from os import curdir
+import os 
 from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate, migrate
+from flask_migrate import Migrate
 from datetime import datetime, timedelta
 from flask_swagger_ui import get_swaggerui_blueprint
 import jwt
+
 import re
 from flask_bcrypt import Bcrypt
 from flask import Flask,jsonify,request,make_response
@@ -12,7 +13,6 @@ from functools import wraps
 # import uuid # for public id
 from  werkzeug.security import generate_password_hash, check_password_hash
 # imports for PyJWT authentication
-import jwt
 
 
 app = Flask(__name__)
@@ -79,11 +79,6 @@ SWAGGERUI_BLUEPRINT = get_swaggerui_blueprint(
 )
 app.register_blueprint(SWAGGERUI_BLUEPRINT, url_prefix=SWAGGER_URL)
 
-# @app.route("/static/swagger.json")
-
-# def specs():
-
-#  return send_from_directory(os.getcwd(), "swagger.json")
 
 
 
@@ -153,39 +148,6 @@ def token_required(f):
 
 
 
-# @app.route("/adduser/", methods=['POST'])
-# def add_user():
-#     try:
-#         user = request.json
-#         if not user:
-#             return {
-#                 "message": "Please provide user details",
-#                 "data": None,
-#                 "error": "Bad request"
-#             }, 400
-#         is_validated = validate_user(**user)
-#         if is_validated is not True:
-#             return dict(message='Invalid data', data=None, error=is_validated), 400
-#         user = User().create(**user)
-#         print(user)
-#         print("hiokl")
-#         if not user:
-#             return {
-#                 "message": "User already exists",
-#                 "error": "Conflict",
-#                 "data": None
-#             }, 409
-#         return {
-#             "message": "Successfully created new user",
-#             "data": user
-#              }, 201
-#     except Exception as e:
-#         return {
-#             "message": "Something went wrong",
-#             "error": str(e),
-#             "data": None
-#         }, 500
-
 @app.route('/user', methods =['GET'])
 # @token_required
 def get_all_users():
@@ -198,6 +160,7 @@ def get_all_users():
         # appending the user data json
         # to the response list
         output.append({
+            'id':user.id,
             'username' : user.username,
             'email' : user.email,
             'password':user.password
@@ -206,45 +169,16 @@ def get_all_users():
     return jsonify({'users': output})
 
 
-# @app.route('/signup', methods=['POST'])
-# def signup():
 
-#     username = request.json.get('username')
-#     email = request.json.get('email')
-#     password = request.json.get('password')
-   
-
-    
-#     user = User.query.filter_by(username=username).first()
-#     u=User.query.all()
-#     print(u)
-#     if not user:
-      
-#         user = User( username=username,email=email, password=password)
-        
-#         db.session.add(user)
-#         db.session.commit()
-
-#         return make_response('Successfully user registered.', 400)
-        
-#     else:
-#         return make_response('User already exists. Please Log in.', 202)
-
-
-# signup route
 @app.route('/signup', methods =['POST'])
 def signup():
-    # creates a dictionary of the form data
     data = request.json
-  
-    # gets name, email and password
-    username, email = data.get('username'), data.get('email')
+    username= data.get('username')
+    email =data.get('email')
     password = data.get('password')
   
     # checking for existing user
-    user = User.query\
-        .filter_by(email = email)\
-        .first()
+    user = User.query.filter_by(email = email).first()
     if not user:
         # database ORM object
         user = User(
@@ -253,25 +187,21 @@ def signup():
             email = email,
             password = generate_password_hash(password)
         )
-        # insert user
         db.session.add(user)
         db.session.commit()
   
         return make_response('Successfully registered.', 201)
     else:
-        # returns 202 if user already exists
         return make_response('User already exists. Please Log in.', 202)
   
 
-# route for logging user in
 @app.route('/login', methods =['POST'])
 def login():
-    # creates dictionary of form data
+    
     auth = request.json
   
     if not auth or not auth.get('email') or not auth.get('password'):
-        # returns 401 if any email or / and password is missing
-        return make_response(
+             return make_response(
             'Could not verify',
             401,
             {'WWW-Authenticate' : 'Basic realm ="Login required !!"'}
@@ -282,7 +212,6 @@ def login():
         .first()
   
     if not user:
-        # returns 401 if user does not exist
         return make_response(
             'Could not verify',
             401,
@@ -290,7 +219,6 @@ def login():
         )
   
     if check_password_hash(user.password, auth.get('password')):
-        # generates the JWT Token
         token = jwt.encode({
             'id': user.id,
             'exp' : datetime.utcnow() + timedelta(minutes = 30)
@@ -304,34 +232,6 @@ def login():
         {'WWW-Authenticate' : 'Basic realm ="Wrong Password !!"'}
     )        
 
-# @app.route('/login', methods=['POST'])
-# def login():
-#     username = request.json.get('username')
-#     if not request.json or not request.json.get('username') or not request.json.get('password'):
-#             return make_response(
-#             'Could not verify',
-#             401,
-#             {'WWW-Authenticate': 'Basic realm ="Login required !!"'}
-#         )
-
-#     user = User.query.filter_by(username=username).first()
-#     print(user)
-#     if not user:
-       
-#         return make_response(
-#             'Could not verify',
-#             401,
-#             {'WWW-Authenticate': 'Basic realm ="User does not exist !!"'}
-#         )
-
-#     if user:
-#         # generates the JWT Token
-#         token = jwt.encode({
-#             'id': user.id,
-#             'exp': datetime.utcnow() + timedelta(minutes=30)
-#         }, app.config['SECRET_KEY'])
-
-#         return make_response(jsonify({'token': token}), 201)
     
   
 @app.route('/getuser', methods = ['GET'])
@@ -347,50 +247,35 @@ def get_user():
     print(result)
     return result
 
-
-@app.route("/cn", methods=["GET"])
-@token_required
-def get_current_user(current_user):
-    return jsonify({
-        "message": "successfully retrieved user profile",
-        "data": current_user
-    })    
+  
 
 
-@app.route('/user_delete/<id>/', methods = ['DELETE'])
-def delete_user(id): 
+
+
+
+@app.route("/user_delete/<int:id>/", methods=["DELETE"])
+def delete_user(id):
     user = User.query.filter_by(id=id).first()
-    db.session.delete(user)
-    db.session.commit()
+    if user:
+        print(user)
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({
+                "message": "successfully deleted a user",
+            }), 200
     return jsonify({
-            "message": "successfully deleted a user"
-           
-        }), 204
-
-
-# @app.route("/user/<id>/", methods=["DELETE"])
-# # @token_required
-# def delete_user(id):
-    
-#     User().delete(id)
-#     return jsonify({
-#             "message": "successfully deleted a user",
-#             "data": None
-#         }), 204
-        
+        "message": "user not found",
+    }), 404
 
 
 @app.route('/post_list', methods=['GET'])
-# @token_required
 def get_post():
     post = Post.query.all()
     print(post)
-
     output = []
 
     for i in post:
         post_data = {}
-
         post_data['id'] = i.id
         post_data['title'] = i.title
         post_data['description'] = i.description
@@ -408,6 +293,7 @@ def get_post():
 def add_post():
     try:
         post = request.json
+
         if not post:
             return {
                 "message": "Invalid data,",
@@ -435,32 +321,10 @@ def add_post():
             "error": str(e),
             "data": None
         }), 500
-    # data = request.json
-    # print(data)
-
-    # blog = Post(title=data['title'], description=data['description'])
-    # print(blog)
-    # db.session.add(blog)
-    # db.session.commit()
-
-    # blog_data = {}
-    # blog_data['id'] = blog.id
-    # blog_data['title'] = blog.title
-    # blog_data['description'] = blog.description
-    # blog_data['user_id'] = blog.user_id
-    # blog_data['date_posted'] = blog.date_posted
-    
-
-    # return jsonify(blog_data)
-    # return jsonify({'message': "post is created!"})
-
+   
 
 @app.route("/get_post/<int:user_id>/", methods=["GET"])
 def get_posts(user_id):
-    # data = request.json
-    # user_id = data['user_id']
-    # print(user_id)
-
     try:
         posts = Post.query.get(user_id)
         response={}
@@ -482,75 +346,96 @@ def get_posts(user_id):
 
 
 @app.route("/update_post/<int:id>/", methods=['PUT'])
-# @token_required
 def update_post(id):
     data = request.json
+    print(data)
     post = Post.query.filter_by(id=id).first()
+    # post= Post.query.all()
+    # for p in post:
+        # print(p,'this is p ')
+    # print("This is post data >>>>>>>>>>>>>>>",post)
     if post:
-        post.title = data["title"]
-        post.description = data["description"]
+        post.title = data.get("title")
+        post.description = data.get("description")
+        db.session.commit()
+        return jsonify({'message': "post is updated!"})
     else:
-        post = Post(id=id,**data)
-
-    db.session.add(post)
-    db.session.commit()
-    return jsonify({"posts": post})
-    # try:
-    #     post = Post.query.get(id)
-    #     # user=User.query.all()
-    #     # if not post or post["user_id"] != current_user["_id"]:
-    #     #     return {
-    #     #         "message": "post is  not found for user",
-    #     #         "data": None,
-    #     #         "error": "Not found"
-    #     #     }, 404
-    #     post = request.json
-    #     post = Post().update(post)
-    #     return jsonify({
-    #         "message": "successfully updated a post",
-    #         "data": post
-    #     }), 201
-    # except Exception as e:
-    #     return jsonify({
-    #         "message": "failed to update a post",
-    #         "error": str(e),
-    #         "data": None
-    #     }), 400
-
-
-@app.route("/posts/<int:id>", methods=["DELETE"])
-@token_required
-def delete_post(id):
-    Post.query.delete(id)
-    return jsonify({
-            "message": "successfully deleted a post",
-            "data": None
-        }), 204
-    
+        return jsonify({'message': "post not found!"})
 
    
 
-@app.route('/get_comment/<id>', methods=['GET'])
-def get_comment(id):
-    comment = Comment.query.get(id)
+@app.route("/post_delete/<int:id>/", methods=["DELETE"])
+def delete_post(id):
+    post = Post.query.filter_by(id=id).first()
+    if post:
+        print(post)
+        db.session.delete(post)
+        db.session.commit()
+        return jsonify({
+                "message": "successfully deleted a post",
+                "data": None
+            }), 200
+    return jsonify({
+        "message": "post not found",
+    }), 404
+
+   
+
+@app.route('/get_comment', methods=['GET'])
+def get_comment():
+    comment = Comment.query.filter_by(id=1).first()
+    print(comment.content, "comment")
     return jsonify({
         "message": "successfully get a comments",
         "data": comment
     }), 200
 
 
-@app.route('/add_comment/', methods=['POST'])
+@app.route('/add_comment', methods=['POST'])
 def add_comment():
     data = request.json
-    print(data)
 
-    comment= Comment(content=data['content'], post=data['post'])
-    print(comment)
-    db.session.add( comment)
-    db.session.commit()
+    # print("data==========",type(data),data, data['content'], data['post'], data['user_id'], data['user'])
+    try:
+
+        comment= Comment(content=data['content'],post_id=data['post'],user_id=data['user_id'])
+        # print(comment)
+        db.session.add(comment)
+        db.session.commit()
+    except Exception as e:
+        return jsonify({"message": e})
 
     return jsonify({'message': "post is created!"})
+   
 
+@app.route("/update_comment/<int:id>/", methods=['PUT'])
+
+def update_comment(id):
+    data = request.json
+    print(data)
+    comment = Comment.query.filter_by(id=id).first()
+    print('-----')
+    if comment :
+        comment.content = data.get("content")
+        db.session.commit()
+        return jsonify({'message': "comment is updated!"})
+    else:
+        return jsonify({'message': "comment is not found!"})
+
+@app.route("/comment_delete/<int:id>/", methods=["DELETE"])
+def delete_comment(id):
+    comment = Comment.query.filter_by(id=id).first()
+    if comment:
+        print(comment)
+        db.session.delete(comment)
+        db.session.commit()
+        return jsonify({
+                "message": "successfully deleted a comment",
+                "data": id
+            }), 200
+    return jsonify({
+        "message": "comment not found",
+    }), 404
 
 
 
